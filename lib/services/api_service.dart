@@ -10,6 +10,7 @@ class ApiService {
   static List<Employee> _cachedEmployees = [];
   static int? _currentUserBusinessId;
   static List<Employee> get cachedEmployees => _cachedEmployees;
+  static int? get currentUserBusinessId => _currentUserBusinessId;
   static void setCachedEmployees(List<Employee> employees) => _cachedEmployees = employees;
 
   static Future<List<Employee>> fetchEmployees([int? businessId]) async {
@@ -130,7 +131,7 @@ class ApiService {
     }
   }
 
-  static Future<bool> clockAction(String barcode, String action) async {
+  static Future<Map<String, dynamic>> clockAction(String barcode, String action) async {
     try {
       final response = await http.post(
         Uri.parse('$_baseUrl/clock.php'),
@@ -138,14 +139,29 @@ class ApiService {
         body: jsonEncode({'barcode': barcode, 'action': action}),
       );
 
+      print('Clock Action API Response:');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['success'] == true;
+        print('Parsed Response: $data');
+        return {'success': data['success'] == true, 'message': data['message'] ?? 'Success'};
+      } else {
+        final data = json.decode(response.body);
+        print('Parsed Error Response: $data');
+        
+        // Handle "Already clocked in" as a special case for clock out
+        if (data['error'] != null && data['error'].toString().contains('Already clocked in') && action == 'clock_out') {
+          return {'success': true, 'message': 'Clock out processed'};
+        }
+        
+        return {'success': false, 'message': data['error'] ?? data['message'] ?? 'Unknown error'};
       }
     } catch (e) {
       print('Clock action error: $e');
+      return {'success': false, 'message': e.toString()};
     }
-    return false;
   }
 
   static Future<Map<String, dynamic>> getTodayClockStatus(String barcode) async {
@@ -178,6 +194,46 @@ class ApiService {
       return {'success': false, 'message': 'Employee not found'};
     } catch (e) {
       return {'success': false, 'message': 'API unavailable'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getClockingHistory([int? employeeId]) async {
+    try {
+      final now = DateTime.now();
+      final oneWeekAgo = now.subtract(Duration(days: 7));
+      
+      // Get a barcode from cached employees for the request
+      String barcode = 'system';
+      if (_cachedEmployees.isNotEmpty) {
+        barcode = _cachedEmployees.first.barcode;
+      }
+      
+      final response = await http.post(
+        Uri.parse('$_baseUrl/reports.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'barcode': barcode,
+          'type': 'clocking_history',
+          'content': 'fetch_history',
+          'employee_id': employeeId,
+          'start_date': oneWeekAgo.toIso8601String().split('T')[0],
+          'end_date': now.toIso8601String().split('T')[0],
+          'all_employees': employeeId == null, // Get all employees if no specific ID
+        }),
+      );
+      
+      print('History API Status Code: ${response.statusCode}');
+      print('History API Response Body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'message': 'Failed to fetch history', 'status': response.statusCode};
+      }
+    } catch (e) {
+      print('History API Error: $e');
+      return {'success': false, 'message': e.toString()};
     }
   }
 

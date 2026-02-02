@@ -289,17 +289,56 @@ class DatabaseService {
     return maps.map((map) => ClockEntry.fromMap(map)).toList();
   }
 
+  Future<List<ClockEntry>> getEntriesForEmployee(int employeeId) async {
+    final db = await database;
+    final maps = await db.query(
+      'clock_entries',
+      where: 'employeeId = ?',
+      whereArgs: [employeeId],
+      orderBy: 'clockIn DESC',
+    );
+    return maps.map((map) => ClockEntry.fromMap(map)).toList();
+  }
+
   Future<void> saveDailyPlan(int employeeId, String plan) async {
     final db = await database;
     final today = DateTime.now();
     final dateStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
+    // Update clock entry with plan
+    final entry = await getTodayEntry(employeeId);
+    if (entry != null) {
+      final updatedEntry = entry.copyWith(dailyPlan: plan);
+      await updateClockEntry(updatedEntry);
+    }
+
     await db.insert('daily_plans', {
       'employeeId': employeeId,
       'date': dateStr,
       'plan': plan,
       'synced': 0,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> saveDailyReport(int employeeId, String report) async {
+    final db = await database;
+    final today = DateTime.now();
+    final dateStr =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+    // Update clock entry with report
+    final entry = await getTodayEntry(employeeId);
+    if (entry != null) {
+      final updatedEntry = entry.copyWith(dailyReport: report);
+      await updateClockEntry(updatedEntry);
+    }
+
+    await db.insert('daily_reports', {
+      'employeeId': employeeId,
+      'date': dateStr,
+      'content': report,
+      'status': 'submitted',
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 

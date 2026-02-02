@@ -7,7 +7,7 @@ class CreateTaskScreen extends StatefulWidget {
   final int projectId;
   final Phase phase;
   final Employee employee;
-  CreateTaskScreen({
+  const CreateTaskScreen({super.key, 
     required this.projectId,
     required this.phase,
     required this.employee,
@@ -92,14 +92,14 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                   SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _save,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      child: Text('Create Task'),
-                    ),
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Text('Create Task'),
                     ),
                   ),
                 ],

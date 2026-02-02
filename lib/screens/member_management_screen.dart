@@ -5,7 +5,7 @@ class MemberManagementScreen extends StatefulWidget {
   final int projectId;
   final int callerId;
 
-  MemberManagementScreen({required this.projectId, required this.callerId});
+  const MemberManagementScreen({super.key, required this.projectId, required this.callerId});
 
   @override
   _MemberManagementScreenState createState() => _MemberManagementScreenState();
@@ -113,11 +113,13 @@ class _MemberManagementScreenState extends State<MemberManagementScreen> {
               child: FutureBuilder<List<Map<String, dynamic>>>(
                 future: _membersFuture,
                 builder: (c, s) {
-                  if (s.connectionState != ConnectionState.done)
+                  if (s.connectionState != ConnectionState.done) {
                     return Center(child: CircularProgressIndicator());
+                  }
                   final members = s.data ?? [];
-                  if (members.isEmpty)
+                  if (members.isEmpty) {
                     return Center(child: Text('No members yet'));
+                  }
                   return ListView.separated(
                     itemCount: members.length,
                     separatorBuilder: (_, __) => Divider(),

@@ -97,23 +97,36 @@ class ClockingService {
 
       return 'Clocked In at $currentTime';
     } else if (todayEntry.clockOut == null) {
-      // Second clock action - Clock Out
-      // Check if both plan and report have been submitted (from database)
-      if (todayEntry.dailyPlan == null || todayEntry.dailyPlan!.isEmpty) {
-        throw Exception(
-          'Daily plan not submitted yet. Please submit your daily plan before clocking out.',
-        );
+      // Second clock action - Check plan/report status
+      bool canClockOut = false;
+      String reportStatus = '';
+      
+      try {
+        final apiStatus = await ApiService.getTodayClockStatus(barcode);
+        if (apiStatus['success'] == true && apiStatus['data'] != null) {
+          final data = apiStatus['data'];
+          reportStatus = data['dailyReport']?.toString() ?? '';
+          canClockOut = reportStatus.isNotEmpty;
+        } else {
+          // API failed, check database
+          reportStatus = todayEntry.dailyReport ?? '';
+          canClockOut = reportStatus.isNotEmpty;
+        }
+      } catch (e) {
+        print('API check failed, using database: $e');
+        // Network error, check database
+        reportStatus = todayEntry.dailyReport ?? '';
+        canClockOut = reportStatus.isNotEmpty;
       }
-
-      if (todayEntry.dailyReport == null || todayEntry.dailyReport!.isEmpty) {
-        throw Exception(
-          'Daily report not submitted yet. Please submit your daily report before clocking out.',
-        );
+      
+      if (!canClockOut) {
+        return 'Daily report not submitted yet. Please submit your daily report before clocking out.';
       }
 
       // Update database clock entry with clockOut
       final updatedEntry = todayEntry.copyWith(clockOut: DateTime.now());
       await db.updateClockEntry(updatedEntry);
+      print('Database updated with clock out time: ${DateTime.now()}');
 
       // Update local history
       if (todayRecord.isNotEmpty) {
@@ -127,12 +140,27 @@ class ClockingService {
         history[index] = updatedRecord;
         await saveClockingHistory(history);
         _syncRecord(updatedRecord);
+      } else {
+        // Create new record if none exists
+        final newRecord = ClockingHistory(
+          date: today,
+          id: employee.id,
+          barcode: barcode,
+          name: employee.name,
+          timein: DateFormat('HH:mm').format(todayEntry.clockIn!),
+          timeout: currentTime,
+          remark: 'Present',
+          sentstatus: false,
+        );
+        history.add(newRecord);
+        await saveClockingHistory(history);
+        _syncRecord(newRecord);
       }
 
       return 'Clocked Out at $currentTime';
     } else {
       // Already clocked in and out for today
-      return 'Already completed clocking for today';
+      return 'You have already clocked out for today. Next clocking will be tomorrow\'s clock in.';
     }
   }
 
@@ -162,12 +190,15 @@ class ClockingService {
 
   static Future<void> _syncRecord(ClockingHistory record) async {
     try {
-      final success = await ApiService.clockAction(
+      // Determine action based on whether timeout is set
+      final action = record.timeout != null ? 'clock_out' : 'clock_in';
+      
+      final result = await ApiService.clockAction(
         record.barcode,
-        record.timeout == null ? 'clock_in' : 'clock_out',
+        action,
       );
 
-      if (success) {
+      if (result['success'] == true) {
         final history = await getClockingHistory();
         final index = history.indexWhere(
           (h) => h.barcode == record.barcode && h.date == record.date,

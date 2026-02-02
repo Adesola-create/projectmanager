@@ -4,7 +4,7 @@ import '../services/database_service.dart';
 
 class CreateProjectScreen extends StatefulWidget {
   final Employee owner;
-  CreateProjectScreen({required this.owner});
+  const CreateProjectScreen({super.key, required this.owner});
 
   @override
   _CreateProjectScreenState createState() => _CreateProjectScreenState();
@@ -72,14 +72,14 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                   SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _save,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      child: Text('Create Project'),
-                    ),
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Text('Create Project'),
                     ),
                   ),
                 ],

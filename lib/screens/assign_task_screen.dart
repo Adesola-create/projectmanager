@@ -6,7 +6,7 @@ class AssignTaskScreen extends StatefulWidget {
   final int projectId;
   final int callerId;
 
-  AssignTaskScreen({
+  const AssignTaskScreen({super.key, 
     required this.taskId,
     required this.projectId,
     required this.callerId,
@@ -54,11 +54,13 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         child: FutureBuilder<List<Map<String, dynamic>>>(
           future: _membersFuture,
           builder: (c, s) {
-            if (s.connectionState != ConnectionState.done)
+            if (s.connectionState != ConnectionState.done) {
               return Center(child: CircularProgressIndicator());
+            }
             final members = s.data ?? [];
-            if (members.isEmpty)
+            if (members.isEmpty) {
               return Center(child: Text('No project members to assign'));
+            }
             return Column(
               children: [
                 Card(

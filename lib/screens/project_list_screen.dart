@@ -9,7 +9,7 @@ import 'project_detail_screen.dart';
 
 class ProjectListScreen extends StatefulWidget {
   final Employee employee;
-  ProjectListScreen({required this.employee});
+  const ProjectListScreen({super.key, required this.employee});
 
   @override
   _ProjectListScreenState createState() => _ProjectListScreenState();
@@ -60,8 +60,9 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _projectsFuture,
         builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done)
+          if (snap.connectionState != ConnectionState.done) {
             return Center(child: CircularProgressIndicator());
+          }
           final projects = snap.data ?? [];
           if (projects.isEmpty) return Center(child: Text('No projects yet'));
 
@@ -156,7 +157,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                     isThreeLine: true,
                     trailing: PopupMenuButton<String>(
                       onSelected: (v) {
-                        if (v == 'open')
+                        if (v == 'open') {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -168,6 +169,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                           ).then((v) {
                             if (v == true) setState(() => _loadProjects());
                           });
+                        }
                       },
                       itemBuilder: (_) => [
                         PopupMenuItem(

@@ -3,8 +3,6 @@ import '../models/project.dart';
 import '../models/user.dart';
 import '../services/database_service.dart';
 import '../services/project_service.dart';
-import 'member_management_screen.dart';
-import 'assign_task_screen.dart';
 import '../models/phase.dart';
 import 'create_phase_screen.dart';
 import 'create_task_screen.dart';
@@ -13,7 +11,7 @@ import '../models/task.dart';
 class ProjectDetailScreen extends StatefulWidget {
   final Employee employee;
   final Project project;
-  ProjectDetailScreen({required this.employee, required this.project});
+  const ProjectDetailScreen({super.key, required this.employee, required this.project});
 
   @override
   _ProjectDetailScreenState createState() => _ProjectDetailScreenState();
@@ -85,8 +83,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _phasesFuture,
         builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done)
+          if (snap.connectionState != ConnectionState.done) {
             return Center(child: CircularProgressIndicator());
+          }
           final phases = snap.data ?? [];
           return CustomScrollView(
             slivers: [
@@ -208,15 +207,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                               child: FutureBuilder<List<Map<String, dynamic>>>(
                                 future: _db.getTasksForPhase(ph.id!),
                                 builder: (c, s) {
-                                  if (s.connectionState != ConnectionState.done)
+                                  if (s.connectionState != ConnectionState.done) {
                                     return Center(
                                       child: Padding(
                                         padding: EdgeInsets.all(8),
                                         child: CircularProgressIndicator(),
                                       ),
                                     );
+                                  }
                                   final tasks = s.data ?? [];
-                                  if (tasks.isEmpty)
+                                  if (tasks.isEmpty) {
                                     return ListTile(
                                       title: Text('No tasks for this phase'),
                                       trailing: TextButton(
@@ -224,6 +224,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                                         child: Text('Add Task'),
                                       ),
                                     );
+                                  }
                                   return Column(
                                     children: tasks.map((t) {
                                       final task = Task.fromMap(t);
@@ -263,7 +264,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                                 },
                               ),
                             ),
-                            ButtonBar(
+                            OverflowBar(
                               alignment: MainAxisAlignment.end,
                               children: [
                                 TextButton.icon(

@@ -8,7 +8,7 @@ import '../models/clock_entry.dart';
 class ReportsScreen extends StatefulWidget {
   final Employee employee;
 
-  ReportsScreen({required this.employee});
+  const ReportsScreen({super.key, required this.employee});
 
   @override
   _ReportsScreenState createState() => _ReportsScreenState();
@@ -222,7 +222,9 @@ class _ReportsScreenState extends State<ReportsScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.green[600],
+        backgroundColor: Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: Duration(seconds: 3),
       ),
     );
@@ -232,70 +234,80 @@ class _ReportsScreenState extends State<ReportsScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red[600],
+        backgroundColor: Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: Duration(seconds: 3),
       ),
     );
   }
 
   Widget _buildStatusProgressIndicator() {
-    return Card(
-      color: Colors.blue[50],
-      elevation: 2,
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Daily Workflow Progress',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Daily Workflow Progress',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
                 ),
-                IconButton(
-                  onPressed: () async {
-                    setState(() {
-                      _isLoading = true;
-                    });
-                    await _loadTodayStatus();
-                  },
-                  icon: Icon(Icons.refresh, color: Colors.blue[600]),
-                  tooltip: 'Refresh Status',
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            _buildProgressStep(1, 'Clock In', _clockStatus != 'not_clocked_in'),
-            SizedBox(height: 12),
-            _buildProgressStep(
-              2,
-              'Submit Daily Plan',
-              _clockStatus == 'plan_submitted' ||
-                  _clockStatus == 'report_submitted' ||
-                  _clockStatus == 'clocked_out',
-            ),
-            SizedBox(height: 12),
-            _buildProgressStep(
-              3,
-              'Submit Daily Report',
-              _clockStatus == 'report_submitted' ||
-                  _clockStatus == 'clocked_out',
-            ),
-            SizedBox(height: 12),
-            _buildProgressStep(
-              4,
-              'Clock Out',
-              _clockStatus == 'clocked_out',
-              isEnabled: _clockStatus == 'report_submitted',
-            ),
-          ],
-        ),
+              ),
+              IconButton(
+                onPressed: () async {
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  await _loadTodayStatus();
+                },
+                icon: Icon(Icons.refresh, color: Color(0xFF3B82F6)),
+                tooltip: 'Refresh Status',
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+          _buildProgressStep(1, 'Clock In', _clockStatus != 'not_clocked_in'),
+          SizedBox(height: 16),
+          _buildProgressStep(
+            2,
+            'Submit Daily Plan',
+            _clockStatus == 'plan_submitted' ||
+                _clockStatus == 'report_submitted' ||
+                _clockStatus == 'clocked_out',
+          ),
+          SizedBox(height: 16),
+          _buildProgressStep(
+            3,
+            'Submit Daily Report',
+            _clockStatus == 'report_submitted' ||
+                _clockStatus == 'clocked_out',
+          ),
+          SizedBox(height: 16),
+          _buildProgressStep(
+            4,
+            'Clock Out',
+            _clockStatus == 'clocked_out',
+            isEnabled: _clockStatus == 'report_submitted',
+          ),
+        ],
       ),
     );
   }
@@ -309,13 +321,13 @@ class _ReportsScreenState extends State<ReportsScreen>
     return Row(
       children: [
         Container(
-          width: 36,
-          height: 36,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isCompleted
-                ? Colors.green
-                : (isEnabled ? Colors.blue[600] : Colors.grey[300]),
+                ? Color(0xFF10B981)
+                : (isEnabled ? Color(0xFF3B82F6) : Color(0xFFE2E8F0)),
           ),
           child: Center(
             child: isCompleted
@@ -323,20 +335,21 @@ class _ReportsScreenState extends State<ReportsScreen>
                 : Text(
                     stepNum.toString(),
                     style: TextStyle(
-                      color: isCompleted ? Colors.white : Colors.grey[600],
+                      color: isCompleted || isEnabled ? Colors.white : Color(0xFF64748B),
                       fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
           ),
         ),
-        SizedBox(width: 12),
+        SizedBox(width: 16),
         Expanded(
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 14,
-              color: isCompleted ? Colors.green[700] : Colors.grey[700],
-              fontWeight: isCompleted ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 16,
+              color: isCompleted ? Color(0xFF10B981) : Color(0xFF374151),
+              fontWeight: isCompleted ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
         ),
@@ -348,29 +361,36 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
+        backgroundColor: Color(0xFFF8FAFC),
         appBar: AppBar(
           title: Text('My Reports'),
-          backgroundColor: Colors.blue[600],
+          backgroundColor: Color(0xFF3B82F6),
           foregroundColor: Colors.white,
+          elevation: 0,
         ),
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
+        ),
       );
     }
 
     return Scaffold(
+      backgroundColor: Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text('My Reports'),
-        backgroundColor: Colors.blue[600],
+        backgroundColor: Color(0xFF3B82F6),
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: RefreshIndicator(
         onRefresh: _loadTodayStatus,
+        color: Color(0xFF3B82F6),
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
+          padding: EdgeInsets.all(20),
           child: Column(
             children: [
               _buildStatusProgressIndicator(),
-              SizedBox(height: 20),
+              SizedBox(height: 24),
               if (_clockStatus == 'not_clocked_in')
                 _buildNotClockedInCard()
               else if (_clockStatus == 'clocked_in')

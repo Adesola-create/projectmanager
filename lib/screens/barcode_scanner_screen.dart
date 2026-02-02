@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../services/api_service.dart';
 import '../services/clocking_service.dart';
-import 'dashboard_screen.dart';
+import '../services/sound_service.dart';
 
 class BarcodeScannerScreen extends StatefulWidget {
   final String username;
   final String action; // 'clock_in' or 'clock_out'
   final Function(String) onBarcodeScanned;
 
-  BarcodeScannerScreen({
+  const BarcodeScannerScreen({super.key, 
     required this.username,
     required this.action,
     required this.onBarcodeScanned,
@@ -62,79 +61,50 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         setState(() {
           isScanning = false;
         });
-
-        try {
-          final employee = ApiService.findEmployeeByBarcode(code);
-          if (employee != null) {
-            if (widget.username.isEmpty || employee.email == widget.username) {
-              _performClockAction(code, employee);
-            } else {
-              _showErrorDialog('Invalid barcode or employee mismatch.');
-            }
-          } else {
-            _showErrorDialog('Employee not found.');
-          }
-        } catch (e) {
-          _showErrorDialog('Employee not found. Please try again.');
-        }
+        _performClockAction(code);
       }
     }
   }
 
-  Future<void> _performClockAction(String barcode, dynamic employee) async {
+  Future<void> _performClockAction(String barcode) async {
     try {
-      final message = await ClockingService.processClockAction(barcode);
-      // Notify caller (if any)
-      widget.onBarcodeScanned(barcode);
+      print('Processing clock action for barcode: $barcode');
+      
+      // Use ClockingService to handle business logic
+      final result = await ClockingService.processClockAction(barcode);
+      
+      print('Clock action result: $result');
+      
+      // Play appropriate sound based on result
+      if (result.contains('Clocked In')) {
+        await SoundService.playClockInSound();
+      } else if (result.contains('Clocked Out')) {
+        await SoundService.playClockOutSound();
+      } else {
+        await SoundService.playErrorSound();
+      }
+      
+      // Notify caller (if any) - but don't show additional snackbar
+      widget.onBarcodeScanned('');
 
       // Show success message then navigate directly to Dashboard
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.green),
+        SnackBar(
+          content: Text(result),
+          backgroundColor: result.contains('not submitted') ? Color(0xFFEF4444) : Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       );
 
-      await Future.delayed(Duration(milliseconds: 600));
-      // Return to the original logged-in Dashboard by popping back to the first route
+      await Future.delayed(Duration(milliseconds: 1500));
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
-      String errorMessage = e.toString();
-
-      // Extract the meaningful message from the exception
-      if (errorMessage.contains('Daily plan not submitted')) {
-        _showBlockingErrorDialog(
-          'Cannot Clock Out',
-          'You must submit your daily plan before you can clock out.\n\nPlease complete your daily plan in the Reports screen.',
-        );
-      } else if (errorMessage.contains('Daily report not submitted')) {
-        _showBlockingErrorDialog(
-          'Cannot Clock Out',
-          'You must submit your daily report before you can clock out.\n\nPlease complete your daily report in the Reports screen.',
-        );
-      } else {
-        _showErrorDialog('Clock action failed: $errorMessage');
-      }
+      print('Clock action exception: $e');
+      // Play error sound
+      await SoundService.playErrorSound();
+      _showErrorDialog(e.toString().replaceFirst('Exception: ', ''));
     }
-  }
-
-  void _showBlockingErrorDialog(String title, String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              setState(() {
-                isScanning = true;
-              });
-            },
-            child: Text('Try Again'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showErrorDialog(String message) {
@@ -142,8 +112,40 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       context: context,
       barrierDismissible: true,
       builder: (context) => AlertDialog(
-        title: Text('Error'),
-        content: Text(message),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Color(0xFFEF4444).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 24),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Clock Action Failed',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            message,
+            style: TextStyle(
+              fontSize: 16,
+              color: Color(0xFF374151),
+              height: 1.5,
+            ),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () {
@@ -152,7 +154,17 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 isScanning = true;
               });
             },
-            child: Text('OK'),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Try Again',
+              style: TextStyle(
+                color: Color(0xFF3B82F6),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

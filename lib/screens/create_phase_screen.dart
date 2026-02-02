@@ -3,7 +3,7 @@ import '../services/database_service.dart';
 
 class CreatePhaseScreen extends StatefulWidget {
   final int projectId;
-  CreatePhaseScreen({required this.projectId});
+  const CreatePhaseScreen({super.key, required this.projectId});
 
   @override
   _CreatePhaseScreenState createState() => _CreatePhaseScreenState();
@@ -81,14 +81,14 @@ class _CreatePhaseScreenState extends State<CreatePhaseScreen> {
                   SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: _save,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      child: Text('Create Phase'),
-                    ),
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Text('Create Phase'),
                     ),
                   ),
                 ],

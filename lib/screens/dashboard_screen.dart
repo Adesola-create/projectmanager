@@ -11,12 +11,12 @@ import 'clocking_screen.dart';
 import 'reports_screen.dart';
 import 'users_list_screen.dart';
 import 'clocking_history_screen.dart';
-import 'project_list_screen.dart';
+//import 'project_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Employee employee;
 
-  DashboardScreen({required this.employee});
+  const DashboardScreen({super.key, required this.employee});
 
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
@@ -29,8 +29,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _reportController = TextEditingController();
 
   ClockEntry? _todayEntry;
-  String _planStatus = 'not_submitted'; // 'not_submitted', 'submitted'
-  String _reportStatus = 'not_submitted'; // 'not_submitted', 'submitted'
+  String _planStatus = 'not_submitted';
+  String _reportStatus = 'not_submitted';
   int? _employeeId;
 
   @override
@@ -48,9 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _loadTodayEntry() async {
     if (_employeeId != null) {
-      // Sync from API first
       await _sync.syncEmployeeStatus(widget.employee.barcode, _employeeId!);
-      
       final entry = await _db.getTodayEntry(_employeeId!);
       setState(() {
         _todayEntry = entry;
@@ -71,39 +69,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _openBarcodeScanner(String action) async {
-    // This method is no longer needed in the new navigation structure
-  }
-
-  Future<void> _clockIn() async {
-    if (_employeeId != null) {
-      final entry = ClockEntry(
-        employeeId: _employeeId!,
-        employeeName: widget.employee.name.isNotEmpty
-            ? widget.employee.name
-            : widget.employee.email,
-        clockIn: DateTime.now(),
-        status: 'clocked_in',
-      );
-      await _db.insertClockEntry(entry);
-      await _loadTodayEntry();
-      _sync.syncData();
-      _showSuccessMessage('Clocked in successfully!');
-    }
-  }
-
   Future<void> _submitPlan() async {
     if (_planController.text.trim().isNotEmpty && _employeeId != null) {
       await _db.saveDailyPlan(_employeeId!, _planController.text.trim());
-
-      // Submit to API and handle response
       final result = await ApiService.submitReport(
         widget.employee.barcode,
         'plan',
         _planController.text.trim(),
       );
-
-      // If server indicates plan already submitted, reflect that
       if (result['success'] == true ||
           (result['message'] != null &&
               result['message'].toString().toLowerCase().contains('already'))) {
@@ -111,7 +84,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _planStatus = 'submitted';
         });
       }
-
       _sync.syncData();
       _showSuccessMessage(
         result['message'] ??
@@ -123,22 +95,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _submitReport() async {
-    if (_reportController.text.trim().isNotEmpty) {
+    if (_reportController.text.trim().isNotEmpty && _employeeId != null) {
       try {
-        // Save locally first
-        // TODO: Add local report saving to database
-
+        // Save to database first
+        await _db.saveDailyReport(_employeeId!, _reportController.text.trim());
+        
         setState(() {
           _reportStatus = 'submitted';
         });
-
-        // Submit to API and show result
+        
         final res = await ApiService.submitReport(
           widget.employee.barcode,
           'report',
           _reportController.text.trim(),
         );
-
         _showSuccessMessage(
           res['message'] ??
               (res['success'] == true
@@ -151,158 +121,385 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _clockOut() async {
-    if (_todayEntry != null) {
-      final updatedEntry = _todayEntry!.copyWith(
-        clockOut: DateTime.now(),
-        status: 'clocked_out',
-      );
-      await _db.updateClockEntry(updatedEntry);
-      await _loadTodayEntry();
-      _sync.syncData();
-      _showSuccessMessage('Clocked out successfully!');
-    }
-  }
-
   void _showSuccessMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.green,
+        backgroundColor: Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  void _showReportSuccessModal() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green, size: 28),
-              SizedBox(width: 8),
-              Text('Success!'),
-            ],
-          ),
-          content: Text('Your daily report has been successfully submitted.'),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              child: Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _logout() async {
-    // clear persisted user and return to login
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('current_user');
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => LoginScreen()),
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.logout, color: Color(0xFFEF4444)),
+            SizedBox(width: 12),
+            Text('Sign Out'),
+          ],
+        ),
+        content: Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFF3B82F6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Sign Out'),
+          ),
+        ],
+      ),
     );
+    
+    if (confirmed == true) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('current_user');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen()),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Text(
-          'Welcome, ${widget.employee.name.isNotEmpty ? widget.employee.name : widget.employee.email}',
-        ),
-        backgroundColor: Colors.blue[600],
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [IconButton(onPressed: _logout, icon: Icon(Icons.logout))],
+      backgroundColor: Color(0xFFF8FAFC),
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 100),
+              child: Column(
+                children: [
+                  SizedBox(height: 20),
+                  _buildWelcomeCard(),
+                  // SizedBox(height: 24),
+                  // _buildQuickActions(),
+                  SizedBox(height: 24),
+                  _buildNavigationGrid(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            if (widget.employee.canClockOthers) ...[
-              _buildNavigationCard(
-                'Clock Employees',
-                'Clock other employees in and out',
-                Icons.access_time,
-                Colors.blue,
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        ClockingScreen(employee: widget.employee),
+      bottomNavigationBar: _buildBottomNavigation(),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 50, 20, 20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Color(0xFF3B82F6),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF3B82F6).withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(Icons.schedule, color: Colors.white, size: 24),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'TimeTrack Pro',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
                   ),
                 ),
-              ),
-              SizedBox(height: 16),
-              // _buildNavigationCard(
-              //   'Projects',
-              //   'Create and manage projects, phases and tasks',
-              //   Icons.work,
-              //   Colors.teal,
-              //   () => Navigator.push(
-              //     context,
-              //     MaterialPageRoute(
-              //       builder: (context) =>
-              //           ProjectListScreen(employee: widget.employee),
-              //     ),
-              //   ),
-              // ),
-              SizedBox(height: 16),
-            ],
-            _buildNavigationCard(
-              'My Reports',
-              'Submit daily plan and report',
-              Icons.assignment,
-              Colors.orange,
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      ReportsScreen(employee: widget.employee),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                DateFormat('HH:mm').format(DateTime.now()),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
                 ),
               ),
-            ),
-            SizedBox(height: 16),
-            _buildNavigationCard(
-              'Clocking History',
-              'View your clocking records',
-              Icons.history,
-              Colors.purple,
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      ClockingHistoryScreen(employee: widget.employee),
-                ),
-              ),
-            ),
-            if (widget.employee.canClockOthers) ...[
-              SizedBox(height: 16),
-              _buildNavigationCard(
-                'Users List',
-                'View all employees and barcodes',
-                Icons.people,
-                Colors.green,
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => UsersListScreen()),
+              Text(
+                DateFormat('MMM dd, yyyy').format(DateTime.now()),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF64748B),
                 ),
               ),
             ],
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildWelcomeCard() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFF3B82F6).withOpacity(0.3),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(Icons.person, color: Colors.white, size: 32),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Welcome back,',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      widget.employee.name.isNotEmpty
+                          ? widget.employee.name
+                          : widget.employee.email.split('@')[0],
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: _logout,
+                icon: Icon(Icons.logout, color: Colors.white70),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Text(
+            _getStatusText(),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget _buildQuickActions() {
+  //   return Row(
+  //     children: [
+  //       Expanded(
+  //         child: _buildQuickActionCard(
+  //           'Clock Status',
+  //           _getClockStatusText(),
+  //           Icons.access_time,
+  //           Color(0xFF10B981),
+  //           () {},
+  //         ),
+  //       ),
+  //       SizedBox(width: 16),
+  //       Expanded(
+  //         child: _buildQuickActionCard(
+  //           'Today\'s Plan',
+  //           _planStatus == 'submitted' ? 'Submitted' : 'Pending',
+  //           Icons.assignment,
+  //           _planStatus == 'submitted' ? Color(0xFF10B981) : Color(0xFFF59E0B),
+  //           () {},
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
+
+  Widget _buildQuickActionCard(
+    String title,
+    String status,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          SizedBox(height: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            status,
+            style: TextStyle(
+              fontSize: 16,
+              color: Color(0xFF0F172A),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavigationGrid() {
+    List<Map<String, dynamic>> items = [
+      if (widget.employee.canClockOthers) ...[
+        {
+          'title': 'Clock Employees',
+          'subtitle': 'Clock other employees in and out',
+          'icon': Icons.access_time,
+          'color': Color(0xFF3B82F6),
+          'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ClockingScreen(employee: widget.employee),
+                ),
+              ),
+        },
+        {
+          'title': 'Users List',
+          'subtitle': 'View all employees and barcodes',
+          'icon': Icons.people,
+          'color': Color(0xFF10B981),
+          'onTap': () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => UsersListScreen(employee: widget.employee),
+                ),
+              ),
+        },
+      ],
+      {
+        'title': 'My Reports',
+        'subtitle': 'Submit daily plan and report',
+        'icon': Icons.assignment,
+        'color': Color(0xFFF59E0B),
+        'onTap': () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ReportsScreen(employee: widget.employee),
+              ),
+            ),
+      },
+      {
+        'title': 'Clocking History',
+        'subtitle': 'View your clocking records',
+        'icon': Icons.history,
+        'color': Color(0xFF8B5CF6),
+        'onTap': () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ClockingHistoryScreen(employee: widget.employee),
+              ),
+            ),
+      },
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.9,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return _buildNavigationCard(
+          item['title'],
+          item['subtitle'],
+          item['icon'],
+          item['color'],
+          item['onTap'],
+        );
+      },
     );
   }
 
@@ -310,49 +507,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String title,
     String subtitle,
     IconData icon,
-    MaterialColor color,
+    Color color,
     VoidCallback onTap,
   ) {
-    return Card(
-      elevation: 4,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            gradient: LinearGradient(
-              colors: [color[400]!, color[600]!],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: Offset(0, 4),
             ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                color: Color(0xFF64748B),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavigation() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, -2),
           ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              Icon(icon, size: 40, color: Colors.white),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+              _buildNavItem(Icons.dashboard, 'Dashboard', true, () {}),
+              _buildNavItem(Icons.assignment, 'Reports', false, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ReportsScreen(employee: widget.employee),
+                  ),
+                );
+              }),
+              _buildNavItem(Icons.history, 'History', false, () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ClockingHistoryScreen(employee: widget.employee),
+                  ),
+                );
+              }),
+              if (widget.employee.canClockOthers)
+                _buildNavItem(Icons.people, 'Users', false, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UsersListScreen(employee: widget.employee),
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(fontSize: 14, color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_ios, color: Colors.white70),
+                  );
+                }),
             ],
           ),
         ),
@@ -360,254 +615,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatusCard() {
-    return Card(
-      elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+  Widget _buildNavItem(IconData icon, String label, bool isActive, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
-        padding: EdgeInsets.all(24),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [Colors.blue[400]!, Colors.blue[600]!],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: isActive ? Color(0xFF3B82F6).withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_getStatusIcon(), size: 60, color: Colors.white),
-            SizedBox(height: 16),
+            Icon(
+              icon,
+              color: isActive ? Color(0xFF3B82F6) : Color(0xFF64748B),
+              size: 24,
+            ),
+            SizedBox(height: 4),
             Text(
-              _getStatusText(),
+              label,
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(height: 8),
-            if (_todayEntry != null) ...[
-              Text(
-                'Clock In: ${DateFormat('HH:mm').format(_todayEntry!.clockIn)}',
-                style: TextStyle(color: Colors.white70),
-              ),
-              if (_todayEntry!.clockOut != null)
-                Text(
-                  'Clock Out: ${DateFormat('HH:mm').format(_todayEntry!.clockOut!)}',
-                  style: TextStyle(color: Colors.white70),
-                ),
-            ],
-            SizedBox(height: 16),
-            if (true) // Replace with actual clock status check
-              ElevatedButton(
-                onPressed: () => _openBarcodeScanner('clock_in'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.blue[600],
-                  padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.qr_code_scanner),
-                    SizedBox(width: 8),
-                    Text('Scan to Clock In', style: TextStyle(fontSize: 16)),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlanCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.assignment, color: Colors.orange[600], size: 28),
-                SizedBox(width: 12),
-                Text(
-                  'Daily Plan',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: _planController,
-              maxLines: 4,
-              onChanged: (value) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'What do you plan to accomplish today?',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey[50],
-              ),
-            ),
-            SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _planController.text.trim().isNotEmpty
-                    ? _submitPlan
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[600],
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text('Submit Plan', style: TextStyle(fontSize: 16)),
+                fontSize: 12,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                color: isActive ? Color(0xFF3B82F6) : Color(0xFF64748B),
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildReportCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.description, color: Colors.green[600], size: 28),
-                SizedBox(width: 12),
-                Text(
-                  'Daily Report',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: _reportController,
-              maxLines: 4,
-              onChanged: (value) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'What did you accomplish today?',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey[50],
-              ),
-            ),
-            SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _reportController.text.trim().isNotEmpty
-                    ? _submitReport
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[600],
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text('Submit Report', style: TextStyle(fontSize: 16)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildClockOutCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        padding: EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            colors: [Colors.red[400]!, Colors.red[600]!],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.logout, size: 60, color: Colors.white),
-            SizedBox(height: 16),
-            Text(
-              'Ready to Clock Out?',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'You have completed your daily plan and report',
-              style: TextStyle(color: Colors.white70),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => _openBarcodeScanner('clock_out'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.red[600],
-                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.qr_code_scanner),
-                  SizedBox(width: 8),
-                  Text('Scan to Clock Out', style: TextStyle(fontSize: 16)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  IconData _getStatusIcon() {
-    return Icons.login;
   }
 
   String _getStatusText() {
-    return 'Ready to Clock In';
+    if (_todayEntry?.clockOut != null) {
+      return 'You\'ve completed your workday. Great job!';
+    } else if (_todayEntry?.clockIn != null) {
+      return 'You\'re currently clocked in. Keep up the good work!';
+    }
+    return 'Ready to start your productive day?';
+  }
+
+  String _getClockStatusText() {
+    if (_todayEntry?.clockOut != null) {
+      return 'Clocked Out';
+    } else if (_todayEntry?.clockIn != null) {
+      return 'Clocked In';
+    }
+    return 'Not Clocked In';
   }
 }
